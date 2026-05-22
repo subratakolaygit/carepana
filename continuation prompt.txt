@@ -1,0 +1,10 @@
+I'm deploying the CarePana caregiver app to Render (free tier). The code is ready and already has the correct build/start
+  commands configured. Before deploying, I need you to add HTTP Basic Auth to the Express server (server.js) so the app is
+  password-protected — anyone opening the URL should get a browser login prompt. After that, walk me through the GitHub push and
+  Render deployment steps (I stopped before doing any of that today).
+
+  The stack: React + Vite frontend, Express backend on Node.js, Google Sheets as the database. The npm run build + npm start
+  scripts are already set up. The .env file has the Google credentials and is excluded from git via .gitignore.
+
+  ---
+  That covers everything — it will add the password protection first, then pick up the deployment steps from step 1.

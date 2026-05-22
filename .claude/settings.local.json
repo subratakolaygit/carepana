@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm list *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\CarePana\\\\caregiver-app\\\\src\" -Recurse -Include \"*.js\",\"*.jsx\",\"*.ts\",\"*.tsx\")",
+      "Bash(Select-Object FullName)"
+    ]
+  }
+}
