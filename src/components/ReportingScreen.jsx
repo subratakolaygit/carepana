@@ -21,8 +21,8 @@ function exportCSV(records, viewMode) {
   URL.revokeObjectURL(url);
 }
 
-const todayStr  = () => new Date().toISOString().split('T')[0];
-const monthStr  = () => new Date().toISOString().slice(0, 7);
+const todayStr = () => new Date().toISOString().split('T')[0];
+const monthStr = () => new Date().toISOString().slice(0, 7);
 
 function fmtTime(t) {
   if (!t) return '—';
@@ -38,6 +38,7 @@ export default function ReportingScreen({ showToast }) {
   const [viewMode,     setViewMode]     = useState('Executed'); // 'Executed' | 'Planned'
   const [filterType,   setFilterType]   = useState('month');
   const [filterValue,  setFilterValue]  = useState(monthStr());
+  const [statusFilter, setStatusFilter] = useState('All'); // 'All' | 'Active' | 'Cancelled'
 
   const load = async () => {
     setLoading(true);
@@ -61,13 +62,19 @@ export default function ReportingScreen({ showToast }) {
         const dateMatch = !filterValue || (
           filterType === 'day' ? d === filterValue : d.startsWith(filterValue)
         );
-        return dateMatch && r.Type === targetType;
+        if (!dateMatch || r.Type !== targetType) return false;
+
+        // Status filter — treat legacy "Planned"/"Executed" values as active (not cancelled)
+        const status = r.Status || '';
+        if (statusFilter === 'Active')    return status !== 'Cancelled';
+        if (statusFilter === 'Cancelled') return status === 'Cancelled';
+        return true; // 'All'
       })
       .sort((a, b) => {
         if (b.serviceDate !== a.serviceDate) return b.serviceDate.localeCompare(a.serviceDate);
         return (a.FromTime || '').localeCompare(b.FromTime || '');
       });
-  }, [allRecords, filterType, filterValue, viewMode]);
+  }, [allRecords, filterType, filterValue, viewMode, statusFilter]);
 
   const totalServices = filtered.reduce((s, r) => s + (parseInt(r.NumServices) || 0), 0);
 
@@ -111,11 +118,13 @@ export default function ReportingScreen({ showToast }) {
         ))}
       </div>
 
-      {/* Date range filter */}
+      {/* Filters card */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-          <Filter size={13} />Filter by period
+          <Filter size={13} />Filter records
         </div>
+
+        {/* Date range toggle */}
         <div className="flex gap-2">
           {['day', 'month'].map(t => (
             <button key={t} onClick={() => switchFilter(t)}
@@ -127,12 +136,30 @@ export default function ReportingScreen({ showToast }) {
             </button>
           ))}
         </div>
+
+        {/* Date picker */}
         <input
           type={filterType === 'day' ? 'date' : 'month'}
           value={filterValue}
           onChange={e => setFilterValue(e.target.value)}
           className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
         />
+
+        {/* Status dropdown */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+            Status
+          </label>
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            <option value="All">All Statuses</option>
+            <option value="Active">Active Only</option>
+            <option value="Cancelled">Cancelled Only</option>
+          </select>
+        </div>
       </div>
 
       {/* Summary stats */}
@@ -162,7 +189,7 @@ export default function ReportingScreen({ showToast }) {
         </button>
       )}
 
-      {/* Loading spinner */}
+      {/* Loading */}
       {loading && (
         <div className="flex justify-center py-10">
           <div className="w-6 h-6 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
@@ -174,7 +201,7 @@ export default function ReportingScreen({ showToast }) {
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-10 text-center">
           <div className="text-5xl mb-3">{isExecuted ? '⚡' : '📋'}</div>
           <p className="font-semibold text-slate-700">No {viewMode.toLowerCase()} records for this period</p>
-          <p className="text-sm text-slate-400 mt-1">Try a different date range</p>
+          <p className="text-sm text-slate-400 mt-1">Try adjusting the date or status filter</p>
         </div>
       )}
 
@@ -193,34 +220,54 @@ export default function ReportingScreen({ showToast }) {
 
           {/* Rows */}
           <div className="divide-y divide-slate-50">
-            {filtered.map(r => (
-              <div key={r.RecordID} className="px-3 py-2.5 hover:bg-slate-50/70 transition-colors">
-                {/* Main row */}
-                <div className="flex items-center gap-2">
-                  <span className="w-[80px] flex-shrink-0 text-xs font-mono text-slate-500">{r.serviceDate}</span>
-                  <span className="flex-1 text-sm font-semibold text-slate-800 truncate">{r.CaregiverName || '—'}</span>
-                  <span className="flex-1 text-sm text-slate-600 truncate">{r.CustomerName || '—'}</span>
-                  <span className={`w-8 flex-shrink-0 text-sm font-bold text-right ${isExecuted ? 'text-green-600' : 'text-indigo-600'}`}>
-                    {r.NumServices}
-                  </span>
+            {filtered.map(r => {
+              const isCancelled = r.Status === 'Cancelled';
+              return (
+                <div
+                  key={r.RecordID}
+                  className={`px-3 py-2.5 transition-colors ${
+                    isCancelled
+                      ? 'bg-slate-50/80 opacity-60'
+                      : 'hover:bg-slate-50/70'
+                  }`}
+                >
+                  {/* Main row */}
+                  <div className="flex items-center gap-2">
+                    <span className="w-[80px] flex-shrink-0 text-xs font-mono text-slate-500">{r.serviceDate}</span>
+                    <span className="flex-1 text-sm font-semibold text-slate-800 truncate">{r.CaregiverName || '—'}</span>
+                    <span className="flex-1 text-sm text-slate-600 truncate">{r.CustomerName || '—'}</span>
+                    <span className={`w-8 flex-shrink-0 text-sm font-bold text-right ${
+                      isCancelled ? 'text-slate-400' : isExecuted ? 'text-green-600' : 'text-indigo-600'
+                    }`}>
+                      {r.NumServices}
+                    </span>
+                  </div>
+                  {/* Sub-row */}
+                  <div className="flex items-center gap-2 mt-0.5 pl-[88px]">
+                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <Clock size={9} />{fmtTime(r.FromTime)} – {fmtTime(r.ToTime)}
+                    </span>
+                    {isCancelled ? (
+                      <span className="text-xs bg-red-50 text-red-400 px-1.5 py-0.5 rounded font-semibold ml-auto">
+                        Cancelled
+                      </span>
+                    ) : (
+                      <>
+                        {r.Parent_Plan_ID && (
+                          <span className="text-xs text-slate-300 font-mono ml-auto">↳ {r.Parent_Plan_ID}</span>
+                        )}
+                        {!r.Parent_Plan_ID && isExecuted && (
+                          <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-semibold ml-auto">Unplanned</span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-                {/* Sub-row: time + record ID */}
-                <div className="flex items-center gap-2 mt-0.5 pl-[88px]">
-                  <span className="text-xs text-slate-400 flex items-center gap-1">
-                    <Clock size={9} />{fmtTime(r.FromTime)} – {fmtTime(r.ToTime)}
-                  </span>
-                  {r.Parent_Plan_ID && (
-                    <span className="text-xs text-slate-300 font-mono ml-auto">↳ {r.Parent_Plan_ID}</span>
-                  )}
-                  {!r.Parent_Plan_ID && isExecuted && (
-                    <span className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded font-semibold ml-auto">Unplanned</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Footer count */}
+          {/* Footer */}
           <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 text-xs text-slate-400 text-right">
             {filtered.length} record{filtered.length !== 1 ? 's' : ''} · {totalServices} total services
           </div>

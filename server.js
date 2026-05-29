@@ -137,7 +137,7 @@ app.post('/api/service-records', async (req, res) => {
     });
     const RecordID = nextId(existing.data.values, 'REC', 3);
     const now = new Date().toISOString();
-    const status = type === 'Actual' ? 'Executed' : 'Planned';
+    const status = 'Active';
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,

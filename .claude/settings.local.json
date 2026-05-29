@@ -4,7 +4,15 @@
       "Bash(npm install *)",
       "Bash(npm list *)",
       "Bash(Get-ChildItem -Path \"C:\\\\CarePana\\\\caregiver-app\\\\src\" -Recurse -Include \"*.js\",\"*.jsx\",\"*.ts\",\"*.tsx\")",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(npx vite *)",
+      "Bash(node_modules/.bin/vite build *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "PowerShell(Out-Null *)",
+      "PowerShell(npm run *)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:3001/api/service-records?date=2026-05-28&type=Plan\" -TimeoutSec 5 | ConvertTo-Json -Depth 3 | Select-Object -First 50)",
+      "PowerShell(Get-Job *)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Clock, User, Users, AlertTriangle, RefreshCw, Zap } from 'lucide-react';
-import { deleteServiceRecord } from '../lib/api.js';
+import { Plus, Clock, User, Users, AlertTriangle, RefreshCw, Zap, Pencil, Check, X, Ban } from 'lucide-react';
+import { updateServiceRecord } from '../lib/api.js';
 import ServiceEntryModal from './ServiceEntryModal.jsx';
 
 function fmtTime(t) {
@@ -18,7 +18,6 @@ function formatDate(dateStr) {
   });
 }
 
-// Compute what differs between an actual and its parent plan
 function getDiscrepancies(actual, plan) {
   if (!plan) return [];
   const issues = [];
@@ -40,78 +39,115 @@ function getDiscrepancies(actual, plan) {
   return issues;
 }
 
-function ActualCard({ actual, plan, onDelete }) {
-  const [confirmDel, setConfirmDel] = useState(false);
-  const [deleting,   setDeleting]   = useState(false);
+function ActualCard({ actual, plan, showToast, onDataChanged }) {
+  const [editMode, setEditMode] = useState(false);
+  const [fromTime, setFromTime] = useState(actual.FromTime || '');
+  const [toTime, setToTime]     = useState(actual.ToTime || '');
+  const [numSvc, setNumSvc]     = useState(parseInt(actual.NumServices) || 1);
+  const [saving, setSaving]     = useState(false);
 
-  const discrepancies = getDiscrepancies(actual, plan);
-  const isUnplanned   = !actual.Parent_Plan_ID;
-  const hasIssues     = discrepancies.length > 0;
+  const isCancelled  = actual.Status === 'Cancelled';
+  const isUnplanned  = !actual.Parent_Plan_ID;
+  const discrepancies = isCancelled ? [] : getDiscrepancies(actual, plan);
+  const hasIssues    = discrepancies.length > 0;
 
-  const handleDelete = async () => {
-    setDeleting(true);
+  const enterEdit = () => {
+    setFromTime(actual.FromTime || '');
+    setToTime(actual.ToTime || '');
+    setNumSvc(parseInt(actual.NumServices) || 1);
+    setEditMode(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      await onDelete(actual.RecordID);
+      await updateServiceRecord(actual.RecordID, {
+        ...actual,
+        FromTime: fromTime,
+        ToTime: toTime,
+        NumServices: numSvc,
+      });
+      showToast('Execution updated');
+      onDataChanged();
+      setEditMode(false);
     } catch (e) {
-      setDeleting(false);
-      setConfirmDel(false);
+      showToast(e.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelRecord = async () => {
+    setSaving(true);
+    try {
+      await updateServiceRecord(actual.RecordID, { ...actual, Status: 'Cancelled' });
+      showToast('Execution cancelled');
+      onDataChanged();
+      setEditMode(false);
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div className={`bg-white rounded-xl border shadow-sm p-4 ${
-      hasIssues ? 'border-amber-300' : 'border-slate-100'
+    <div className={`rounded-xl border shadow-sm p-4 transition-all ${
+      isCancelled
+        ? 'bg-slate-50 border-slate-200'
+        : hasIssues
+        ? 'bg-white border-amber-300'
+        : 'bg-white border-slate-100'
     }`}>
-      {/* Top row: badges + delete control */}
+      {/* Top row */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-mono font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded">
+          <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded ${
+            isCancelled ? 'text-slate-400 bg-slate-100' : 'text-green-700 bg-green-50'
+          }`}>
             {actual.RecordID}
           </span>
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">
+          <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
+            isCancelled ? 'bg-slate-100 text-slate-400' : 'bg-green-100 text-green-700'
+          }`}>
             Actual
           </span>
-          {isUnplanned && (
-            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-semibold flex items-center gap-1">
-              <Zap size={10} />Unplanned
+          {isCancelled ? (
+            <span className="text-xs bg-red-50 text-red-400 px-2 py-0.5 rounded font-semibold">
+              Cancelled
             </span>
+          ) : (
+            <>
+              {isUnplanned && (
+                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-semibold flex items-center gap-1">
+                  <Zap size={10} />Unplanned
+                </span>
+              )}
+              {discrepancies.map(d => (
+                <span key={d.label} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-semibold flex items-center gap-1">
+                  <AlertTriangle size={10} />{d.label}
+                </span>
+              ))}
+            </>
           )}
-          {discrepancies.map(d => (
-            <span key={d.label} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-semibold flex items-center gap-1">
-              <AlertTriangle size={10} />{d.label}
-            </span>
-          ))}
         </div>
 
-        {/* Delete control */}
-        <div className="flex-shrink-0 ml-2">
-          {confirmDel ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="text-xs font-bold text-red-600 hover:text-red-700 disabled:opacity-50"
-              >
-                {deleting ? '…' : 'Delete'}
-              </button>
-              <button onClick={() => setConfirmDel(false)} className="text-xs text-slate-400 hover:text-slate-600">
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmDel(true)}
-              className="p-1.5 text-slate-300 hover:text-red-400 transition-colors rounded-lg hover:bg-red-50"
-              aria-label="Delete execution record"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
-        </div>
+        {!isCancelled && (
+          <button
+            onClick={editMode ? () => setEditMode(false) : enterEdit}
+            className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 flex-shrink-0 ml-2 ${
+              editMode
+                ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                : 'bg-green-50 text-green-700 hover:bg-green-100'
+            }`}
+          >
+            {editMode ? <><X size={11} />Discard</> : <><Pencil size={11} />Edit</>}
+          </button>
+        )}
       </div>
 
       {/* Details */}
-      <div className="space-y-1.5 mb-1">
+      <div className={`space-y-1.5 ${isCancelled ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-2 text-sm text-slate-700">
           <Users size={13} className="text-slate-400 flex-shrink-0" />
           <span className="font-medium">{actual.CaregiverName || '—'}</span>
@@ -120,15 +156,43 @@ function ActualCard({ actual, plan, onDelete }) {
           <User size={13} className="text-slate-400 flex-shrink-0" />
           <span>{actual.CustomerName || '—'}</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-700">
-          <Clock size={13} className="text-slate-400 flex-shrink-0" />
-          <span>{fmtTime(actual.FromTime)} – {fmtTime(actual.ToTime)}</span>
-          <span className="ml-auto text-xs text-slate-400">{actual.NumServices} svc</span>
-        </div>
+
+        {editMode ? (
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <Clock size={13} className="text-slate-400 flex-shrink-0" />
+            <input
+              type="time"
+              value={fromTime}
+              onChange={e => setFromTime(e.target.value)}
+              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-300"
+            />
+            <span className="text-slate-400 text-xs flex-shrink-0">–</span>
+            <input
+              type="time"
+              value={toTime}
+              onChange={e => setToTime(e.target.value)}
+              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-300"
+            />
+            <input
+              type="number"
+              min="1"
+              value={numSvc}
+              onChange={e => setNumSvc(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-14 flex-shrink-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-green-300"
+            />
+            <span className="text-xs text-slate-400 flex-shrink-0">svc</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-slate-700">
+            <Clock size={13} className="text-slate-400 flex-shrink-0" />
+            <span>{fmtTime(actual.FromTime)} – {fmtTime(actual.ToTime)}</span>
+            <span className="ml-auto text-xs text-slate-400">{actual.NumServices} svc</span>
+          </div>
+        )}
       </div>
 
       {/* Discrepancy detail lines */}
-      {discrepancies.length > 0 && (
+      {!isCancelled && discrepancies.length > 0 && (
         <div className="mt-2 pt-2 border-t border-amber-100 space-y-0.5">
           {discrepancies.map(d => (
             <p key={d.label} className="text-xs text-amber-700">
@@ -139,10 +203,32 @@ function ActualCard({ actual, plan, onDelete }) {
       )}
 
       {/* Parent plan ref */}
-      {actual.Parent_Plan_ID && !isUnplanned && (
+      {!isCancelled && actual.Parent_Plan_ID && !isUnplanned && (
         <p className="mt-1.5 text-xs text-slate-400">
           Based on plan <span className="font-mono">{actual.Parent_Plan_ID}</span>
         </p>
+      )}
+
+      {/* Edit mode save / cancel buttons */}
+      {editMode && (
+        <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-1.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300 py-2.5 rounded-lg transition-colors"
+          >
+            <Check size={14} />
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+          <button
+            onClick={handleCancelRecord}
+            disabled={saving}
+            className="flex items-center justify-center gap-1.5 text-sm font-semibold text-red-500 bg-red-50 hover:bg-red-100 disabled:opacity-50 px-4 py-2.5 rounded-lg transition-colors"
+          >
+            <Ban size={14} />
+            Cancel
+          </button>
+        </div>
       )}
     </div>
   );
@@ -160,24 +246,20 @@ export default function ExecutionScreen({
 }) {
   const [showModal, setShowModal] = useState(false);
 
-  // Build a RecordID → plan map for O(1) discrepancy lookups
   const planMap = useMemo(
     () => plans.reduce((m, p) => { m[p.RecordID] = p; return m; }, {}),
     [plans]
   );
 
-  const handleDelete = async (recordId) => {
-    try {
-      await deleteServiceRecord(recordId);
-      showToast('Execution record deleted');
-      onDataChanged();
-    } catch (e) {
-      showToast(e.message, 'error');
-      throw e;
-    }
-  };
+  // Active records first (by start time), cancelled records at the bottom
+  const sorted = [...actuals].sort((a, b) => {
+    const aCancelled = a.Status === 'Cancelled';
+    const bCancelled = b.Status === 'Cancelled';
+    if (aCancelled !== bCancelled) return aCancelled ? 1 : -1;
+    return (a.FromTime || '').localeCompare(b.FromTime || '');
+  });
 
-  const sorted = [...actuals].sort((a, b) => (a.FromTime || '').localeCompare(b.FromTime || ''));
+  const activeCount = sorted.filter(a => a.Status !== 'Cancelled').length;
 
   return (
     <div className="space-y-4">
@@ -191,7 +273,7 @@ export default function ExecutionScreen({
           <p className="text-xs text-slate-500 mt-0.5">{formatDate(selectedDate)}</p>
         </div>
         <span className="text-xs font-semibold bg-green-50 text-green-700 px-2.5 py-1 rounded-full">
-          {sorted.length} {sorted.length === 1 ? 'record' : 'records'}
+          {activeCount} {activeCount === 1 ? 'record' : 'records'}
         </span>
       </div>
 
@@ -206,19 +288,18 @@ export default function ExecutionScreen({
         </div>
       )}
 
-      {/* Actual cards */}
       <div className="space-y-3">
         {sorted.map(actual => (
           <ActualCard
             key={actual.RecordID}
             actual={actual}
             plan={actual.Parent_Plan_ID ? planMap[actual.Parent_Plan_ID] : null}
-            onDelete={handleDelete}
+            showToast={showToast}
+            onDataChanged={onDataChanged}
           />
         ))}
       </div>
 
-      {/* Add unplanned visit */}
       <button
         onClick={() => setShowModal(true)}
         className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-xl py-3.5 text-sm font-semibold transition-colors shadow-sm"
@@ -227,7 +308,6 @@ export default function ExecutionScreen({
         Add Direct Execution (Unplanned)
       </button>
 
-      {/* Unplanned visit modal */}
       {showModal && (
         <ServiceEntryModal
           type="Actual"

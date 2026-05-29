@@ -8,3 +8,49 @@ I'm deploying the CarePana caregiver app to Render (free tier). The code is read
 
   ---
   That covers everything — it will add the password protection first, then pick up the deployment steps from step 1.
+  
+  ----------------------
+  
+  Here's a continuation prompt you can paste at the start of a new conversation:
+
+  ---
+  CarePana caregiver-app — continuation from previous session
+
+  We just completed a refactor of the React + Express + Google Sheets caregiver app at C:\CarePana\caregiver-app. The
+  build passes cleanly. Here's what was implemented and the current state:
+
+  Features added (all working, build verified):
+
+  1. Inline Edit Mode — each PlanCard (PlanningScreen) and ActualCard (ExecutionScreen) now has an "Edit" / "Discard"
+  toggle button. Clicking Edit transforms the time range and service count into inline <input type="time"> + <input
+  type="number"> fields.
+  2. Save Changes — commits edits to Google Sheets via PUT /api/service-records/:id (updateServiceRecord from
+  src/lib/api.js).
+  3. Soft Cancel — the "Cancel" button (shown in edit mode) sets Status = "Cancelled" in the sheet via the same PUT
+  endpoint. No rows are ever hard-deleted from Planning. The old hard-delete button (Trash2) has been removed from
+  ExecutionScreen.
+  4. Cancelled card styling — cancelled cards are bg-slate-50, content opacity-50, sorted to the bottom of each list,
+  "Copy to Execution" and Edit buttons are hidden.
+  5. Reports status filter — a "Status" dropdown (All / Active / Cancelled) was added to ReportingScreen. Active =
+  Status !== "Cancelled" (handles legacy "Planned" / "Executed" values). Cancelled rows are dimmed with a red badge.
+
+  Server change: POST /api/service-records now writes Status = "Active" for all new records (was type-dependent
+  "Planned" / "Executed").
+
+  Files changed: server.js, src/components/PlanningScreen.jsx, src/components/ExecutionScreen.jsx,
+  src/components/ReportingScreen.jsx.
+
+  What to work on next: (fill in what you want to tackle)
+
+  ---
+  Paste that in, then describe what you'd like to do next and the new session will have full context.
+
+✻ Sautéed for 15s
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> [Pasted text #1 +6 lines]
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Sonnet 4.6 | CarePana/caregiver-app | ctx [####------] 59% left | $1.2864
+  ⏵⏵ accept edits on (shift+tab to cycle)
+
+
