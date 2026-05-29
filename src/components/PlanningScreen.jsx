@@ -18,12 +18,14 @@ function formatDate(dateStr) {
   });
 }
 
-function PlanCard({ plan, onCopyToExecution, showToast, onDataChanged }) {
-  const [editMode, setEditMode] = useState(false);
-  const [fromTime, setFromTime] = useState(plan.FromTime || '');
-  const [toTime, setToTime]     = useState(plan.ToTime || '');
-  const [numSvc, setNumSvc]     = useState(parseInt(plan.NumServices) || 1);
-  const [saving, setSaving]     = useState(false);
+function PlanCard({ plan, customers, onCopyToExecution, showToast, onDataChanged }) {
+  const [editMode,      setEditMode]      = useState(false);
+  const [fromTime,      setFromTime]      = useState(plan.FromTime || '');
+  const [toTime,        setToTime]        = useState(plan.ToTime || '');
+  const [numSvc,        setNumSvc]        = useState(parseInt(plan.NumServices) || 1);
+  const [customerId,    setCustomerId]    = useState(plan.CustomerID || '');
+  const [customerName,  setCustomerName]  = useState(plan.CustomerName || '');
+  const [saving,        setSaving]        = useState(false);
 
   const isCancelled = plan.Status === 'Cancelled';
 
@@ -31,6 +33,8 @@ function PlanCard({ plan, onCopyToExecution, showToast, onDataChanged }) {
     setFromTime(plan.FromTime || '');
     setToTime(plan.ToTime || '');
     setNumSvc(parseInt(plan.NumServices) || 1);
+    setCustomerId(plan.CustomerID || '');
+    setCustomerName(plan.CustomerName || '');
     setEditMode(true);
   };
 
@@ -42,6 +46,8 @@ function PlanCard({ plan, onCopyToExecution, showToast, onDataChanged }) {
         FromTime: fromTime,
         ToTime: toTime,
         NumServices: numSvc,
+        CustomerID: customerId,
+        CustomerName: customerName,
       });
       showToast('Plan updated');
       onDataChanged();
@@ -112,8 +118,26 @@ function PlanCard({ plan, onCopyToExecution, showToast, onDataChanged }) {
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-700">
           <User size={13} className="text-slate-400 flex-shrink-0" />
-          <span>{plan.CustomerName || '—'}</span>
-          <span className="text-xs text-slate-400 font-mono ml-auto">{plan.CustomerID}</span>
+          {editMode ? (
+            <select
+              value={customerId}
+              onChange={e => {
+                const cust = customers.find(c => c.CustomerID === e.target.value);
+                setCustomerId(e.target.value);
+                setCustomerName(cust ? cust.Name : '');
+              }}
+              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              {customers.map(c => (
+                <option key={c.CustomerID} value={c.CustomerID}>{c.Name}</option>
+              ))}
+            </select>
+          ) : (
+            <>
+              <span>{plan.CustomerName || '—'}</span>
+              <span className="text-xs text-slate-400 font-mono ml-auto">{plan.CustomerID}</span>
+            </>
+          )}
         </div>
 
         {editMode ? (
@@ -244,6 +268,7 @@ export default function PlanningScreen({
           <PlanCard
             key={plan.RecordID}
             plan={plan}
+            customers={customers}
             onCopyToExecution={handleCopyToExecution}
             showToast={showToast}
             onDataChanged={onDataChanged}

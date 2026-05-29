@@ -39,12 +39,14 @@ function getDiscrepancies(actual, plan) {
   return issues;
 }
 
-function ActualCard({ actual, plan, showToast, onDataChanged }) {
-  const [editMode, setEditMode] = useState(false);
-  const [fromTime, setFromTime] = useState(actual.FromTime || '');
-  const [toTime, setToTime]     = useState(actual.ToTime || '');
-  const [numSvc, setNumSvc]     = useState(parseInt(actual.NumServices) || 1);
-  const [saving, setSaving]     = useState(false);
+function ActualCard({ actual, plan, customers, showToast, onDataChanged }) {
+  const [editMode,      setEditMode]      = useState(false);
+  const [fromTime,      setFromTime]      = useState(actual.FromTime || '');
+  const [toTime,        setToTime]        = useState(actual.ToTime || '');
+  const [numSvc,        setNumSvc]        = useState(parseInt(actual.NumServices) || 1);
+  const [customerId,    setCustomerId]    = useState(actual.CustomerID || '');
+  const [customerName,  setCustomerName]  = useState(actual.CustomerName || '');
+  const [saving,        setSaving]        = useState(false);
 
   const isCancelled  = actual.Status === 'Cancelled';
   const isUnplanned  = !actual.Parent_Plan_ID;
@@ -55,6 +57,8 @@ function ActualCard({ actual, plan, showToast, onDataChanged }) {
     setFromTime(actual.FromTime || '');
     setToTime(actual.ToTime || '');
     setNumSvc(parseInt(actual.NumServices) || 1);
+    setCustomerId(actual.CustomerID || '');
+    setCustomerName(actual.CustomerName || '');
     setEditMode(true);
   };
 
@@ -66,6 +70,8 @@ function ActualCard({ actual, plan, showToast, onDataChanged }) {
         FromTime: fromTime,
         ToTime: toTime,
         NumServices: numSvc,
+        CustomerID: customerId,
+        CustomerName: customerName,
       });
       showToast('Execution updated');
       onDataChanged();
@@ -154,7 +160,23 @@ function ActualCard({ actual, plan, showToast, onDataChanged }) {
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-700">
           <User size={13} className="text-slate-400 flex-shrink-0" />
-          <span>{actual.CustomerName || '—'}</span>
+          {editMode ? (
+            <select
+              value={customerId}
+              onChange={e => {
+                const cust = customers.find(c => c.CustomerID === e.target.value);
+                setCustomerId(e.target.value);
+                setCustomerName(cust ? cust.Name : '');
+              }}
+              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-300"
+            >
+              {customers.map(c => (
+                <option key={c.CustomerID} value={c.CustomerID}>{c.Name}</option>
+              ))}
+            </select>
+          ) : (
+            <span>{actual.CustomerName || '—'}</span>
+          )}
         </div>
 
         {editMode ? (
@@ -294,6 +316,7 @@ export default function ExecutionScreen({
             key={actual.RecordID}
             actual={actual}
             plan={actual.Parent_Plan_ID ? planMap[actual.Parent_Plan_ID] : null}
+            customers={customers}
             showToast={showToast}
             onDataChanged={onDataChanged}
           />

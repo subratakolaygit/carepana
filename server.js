@@ -29,6 +29,12 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json());
 
+// Prevent any HTTP-layer caching of API responses so the sheet is always read live
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
 
 // Service_Records columns A–N (14 cols):
