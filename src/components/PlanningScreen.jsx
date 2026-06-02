@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Clock, User, Users, ClipboardList, Pencil, Check, X, Ban } from 'lucide-react';
+import { Plus, Clock, User, Users, ClipboardList, Pencil, Check, X, Ban, MessageSquare } from 'lucide-react';
 import { updateServiceRecord } from '../lib/api.js';
 import ServiceEntryModal from './ServiceEntryModal.jsx';
 
@@ -25,6 +25,7 @@ function PlanCard({ plan, customers, onCopyToExecution, showToast, onDataChanged
   const [numSvc,        setNumSvc]        = useState(parseInt(plan.NumServices) || 1);
   const [customerId,    setCustomerId]    = useState(plan.CustomerID || '');
   const [customerName,  setCustomerName]  = useState(plan.CustomerName || '');
+  const [comments,      setComments]      = useState(plan.Comments || '');
   const [saving,        setSaving]        = useState(false);
 
   const isCancelled = plan.Status === 'Cancelled';
@@ -35,6 +36,7 @@ function PlanCard({ plan, customers, onCopyToExecution, showToast, onDataChanged
     setNumSvc(parseInt(plan.NumServices) || 1);
     setCustomerId(plan.CustomerID || '');
     setCustomerName(plan.CustomerName || '');
+    setComments(plan.Comments || '');
     setEditMode(true);
   };
 
@@ -48,6 +50,7 @@ function PlanCard({ plan, customers, onCopyToExecution, showToast, onDataChanged
         NumServices: numSvc,
         CustomerID: customerId,
         CustomerName: customerName,
+        Comments: comments,
       });
       showToast('Plan updated');
       onDataChanged();
@@ -141,36 +144,56 @@ function PlanCard({ plan, customers, onCopyToExecution, showToast, onDataChanged
         </div>
 
         {editMode ? (
-          <div className="flex items-center gap-1.5 pt-0.5">
-            <Clock size={13} className="text-slate-400 flex-shrink-0" />
-            <input
-              type="time"
-              value={fromTime}
-              onChange={e => setFromTime(e.target.value)}
-              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <span className="text-slate-400 text-xs flex-shrink-0">–</span>
-            <input
-              type="time"
-              value={toTime}
-              onChange={e => setToTime(e.target.value)}
-              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <input
-              type="number"
-              min="1"
-              value={numSvc}
-              onChange={e => setNumSvc(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-14 flex-shrink-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <span className="text-xs text-slate-400 flex-shrink-0">svc</span>
-          </div>
+          <>
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <Clock size={13} className="text-slate-400 flex-shrink-0" />
+              <input
+                type="time"
+                value={fromTime}
+                onChange={e => setFromTime(e.target.value)}
+                className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <span className="text-slate-400 text-xs flex-shrink-0">–</span>
+              <input
+                type="time"
+                value={toTime}
+                onChange={e => setToTime(e.target.value)}
+                className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <input
+                type="number"
+                min="1"
+                value={numSvc}
+                onChange={e => setNumSvc(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-14 flex-shrink-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <span className="text-xs text-slate-400 flex-shrink-0">svc</span>
+            </div>
+            <div className="flex items-start gap-1.5 pt-0.5">
+              <MessageSquare size={13} className="text-slate-400 flex-shrink-0 mt-2" />
+              <textarea
+                value={comments}
+                onChange={e => setComments(e.target.value)}
+                placeholder="Add a comment…"
+                rows={2}
+                className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
+              />
+            </div>
+          </>
         ) : (
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Clock size={13} className="text-slate-400 flex-shrink-0" />
-            <span>{fmtTime(plan.FromTime)} – {fmtTime(plan.ToTime)}</span>
-            <span className="ml-auto text-xs text-slate-400">{plan.NumServices} svc</span>
-          </div>
+          <>
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <Clock size={13} className="text-slate-400 flex-shrink-0" />
+              <span>{fmtTime(plan.FromTime)} – {fmtTime(plan.ToTime)}</span>
+              <span className="ml-auto text-xs text-slate-400">{plan.NumServices} svc</span>
+            </div>
+            {plan.Comments && (
+              <div className="flex items-start gap-2 text-sm">
+                <MessageSquare size={13} className="text-slate-400 flex-shrink-0 mt-0.5" />
+                <span className="text-xs text-slate-500 italic">{plan.Comments}</span>
+              </div>
+            )}
+          </>
         )}
       </div>
 

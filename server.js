@@ -37,9 +37,9 @@ app.use('/api', (_req, res, next) => {
 
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
 
-// Service_Records columns A–N (14 cols):
+// Service_Records columns A–O (15 cols):
 // RecordID | CaregiverID | CaregiverName | CustomerID | CustomerName | serviceDate |
-// NumServices | FromTime | ToTime | Status | Type | Parent_Plan_ID | CreatedAt | UpdatedAt
+// NumServices | FromTime | ToTime | Status | Type | Parent_Plan_ID | CreatedAt | UpdatedAt | Comments
 
 function getSheets() {
   const auth = new google.auth.GoogleAuth({
@@ -115,7 +115,7 @@ app.post('/api/customers', async (req, res) => {
 app.get('/api/service-records', async (req, res) => {
   try {
     const r = await getSheets().spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID, range: 'Service_Records!A:N',
+      spreadsheetId: SPREADSHEET_ID, range: 'Service_Records!A:O',
     });
     let data = rowsToObjects(r.data.values);
     if (req.query.date)   data = data.filter(row => row.serviceDate === req.query.date);
@@ -136,6 +136,7 @@ app.post('/api/service-records', async (req, res) => {
       NumServices, FromTime, ToTime,
       type,         // 'Plan' | 'Actual'
       parentPlanId, // Actual linked to a Plan (optional)
+      Comments,
     } = req.body;
 
     const existing = await sheets.spreadsheets.values.get({
@@ -147,7 +148,7 @@ app.post('/api/service-records', async (req, res) => {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Service_Records!A:N',
+      range: 'Service_Records!A:O',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
@@ -156,6 +157,7 @@ app.post('/api/service-records', async (req, res) => {
           NumServices, FromTime, ToTime,
           status, type, parentPlanId || '',
           now, '',
+          Comments || '',
         ]],
       },
     });
@@ -182,12 +184,12 @@ app.put('/api/service-records/:recordId', async (req, res) => {
       CustomerID, CustomerName,
       serviceDate,
       NumServices, FromTime, ToTime,
-      Status, Type, Parent_Plan_ID, CreatedAt,
+      Status, Type, Parent_Plan_ID, CreatedAt, Comments,
     } = req.body;
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Service_Records!A${sheetRow}:N${sheetRow}`,
+      range: `Service_Records!A${sheetRow}:O${sheetRow}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
@@ -196,6 +198,7 @@ app.put('/api/service-records/:recordId', async (req, res) => {
           NumServices, FromTime, ToTime,
           Status, Type, Parent_Plan_ID || '',
           CreatedAt || '', new Date().toISOString(),
+          Comments || '',
         ]],
       },
     });
@@ -211,7 +214,7 @@ app.delete('/api/service-records/:recordId', async (req, res) => {
 
     // Fetch full rows so we can check the Type column before deleting
     const colA = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID, range: 'Service_Records!A:N',
+      spreadsheetId: SPREADSHEET_ID, range: 'Service_Records!A:O',
     });
     const rows = colA.data.values || [];
     const idx = rows.findIndex(r => r[0] === recordId);

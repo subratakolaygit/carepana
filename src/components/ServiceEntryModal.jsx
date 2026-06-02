@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Minus, Clock, Calendar, Users, User } from 'lucide-react';
+import { X, Plus, Minus, Clock, Calendar, Users, User, MessageSquare } from 'lucide-react';
 import { addCustomer, createServiceRecord } from '../lib/api.js';
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -80,6 +80,7 @@ export default function ServiceEntryModal({
     }
     return '10:00';
   });
+  const [comments,    setComments]    = useState(basedOn?.Comments || '');
   const [saving,      setSaving]      = useState(false);
 
   // For Plan type on today's date, only offer future time slots
@@ -161,6 +162,7 @@ export default function ServiceEntryModal({
         ToTime:        toTime,
         type,
         parentPlanId:  basedOn?.RecordID || '',
+        Comments:      comments,
       });
       showToast(`${isPlan ? 'Plan' : 'Execution'} saved — ${result.RecordID}`);
       onSaved();
@@ -301,6 +303,18 @@ export default function ServiceEntryModal({
                 </select>
               </div>
             </div>
+          </div>
+
+          {/* Comments */}
+          <div>
+            <label className={lbl}><MessageSquare size={11} className="inline mr-1" />Comments (optional)</label>
+            <textarea
+              value={comments}
+              onChange={e => setComments(e.target.value)}
+              placeholder="Any notes about this visit…"
+              rows={2}
+              className={`${inp} resize-none`}
+            />
           </div>
 
           {/* Context hint for copy flow */}
