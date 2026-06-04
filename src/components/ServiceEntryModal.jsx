@@ -2,22 +2,8 @@ import React, { useState } from 'react';
 import { X, Plus, Minus, Clock, Calendar, Users, User, MessageSquare } from 'lucide-react';
 import { addCustomer, createServiceRecord } from '../lib/api.js';
 
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const h = Math.floor((i * 30) / 60);
-  const m = (i * 30) % 60;
-  const ampm = h < 12 ? 'AM' : 'PM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return {
-    value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-    label: `${h12}:${String(m).padStart(2, '0')} ${ampm}`,
-  };
-});
-
 const getTodayStr = () => new Date().toISOString().split('T')[0];
-const getNowHHMM = () => {
-  const n = new Date();
-  return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`;
-};
+
 const getNextSlot = () => {
   const n = new Date();
   const totalMins = n.getHours() * 60 + n.getMinutes() + 1;
@@ -27,8 +13,14 @@ const getNextSlot = () => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
-const inp = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300';
-const lbl = 'block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5';
+const addOneHour = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = (h * 60 + m + 60) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+const baseCls = 'w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2';
+const lbl     = 'block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5';
 
 // type:    'Plan' | 'Actual'
 // basedOn: plan record (Copy to Execution) | null (new / unplanned)
@@ -43,8 +35,8 @@ export default function ServiceEntryModal({
   onClose,
   onSaved,
 }) {
-  const isPlan     = type === 'Plan';
-  const isCopy     = type === 'Actual' && !!basedOn;
+  const isPlan      = type === 'Plan';
+  const isCopy      = type === 'Actual' && !!basedOn;
   const isUnplanned = type === 'Actual' && !basedOn;
 
   const title = isPlan
@@ -53,41 +45,34 @@ export default function ServiceEntryModal({
     ? 'Copy Plan → Execution'
     : 'Add Unplanned Visit';
 
-  const accentColor = isPlan ? 'indigo' : 'green';
+  // Ring colour matches the screen accent: indigo for Planning, green for Execution
+  const ring = isPlan ? 'focus:ring-indigo-300' : 'focus:ring-green-300';
+  const inp  = `${baseCls} ${ring}`;
 
   const [caregiverId, setCaregiverId] = useState(basedOn?.CaregiverID || '');
   const [custSearch,  setCustSearch]  = useState(basedOn?.CustomerName || '');
   const [selCust,     setSelCust]     = useState(
     basedOn ? { CustomerID: basedOn.CustomerID, Name: basedOn.CustomerName } : null
   );
-  const [showDrop,    setShowDrop]    = useState(false);
-  const [svcDate,     setSvcDate]     = useState(basedOn?.serviceDate || selectedDate);
-  const [numSvc,      setNumSvc]      = useState(parseInt(basedOn?.NumServices) || 1);
-  const [fromTime,    setFrom]        = useState(() => {
-    if (basedOn?.FromTime) return basedOn.FromTime;
-    if (isPlan) {
-      const slot = getNextSlot();
-      return TIME_OPTIONS.find(t => t.value >= slot)?.value || TIME_OPTIONS[0].value;
-    }
-    return '08:00';
-  });
-  const [toTime,      setTo]          = useState(() => {
-    if (basedOn?.ToTime) return basedOn.ToTime;
-    if (isPlan) {
-      const slot = getNextSlot();
-      const idx = TIME_OPTIONS.findIndex(t => t.value >= slot);
-      return TIME_OPTIONS[Math.min(idx + 2, TIME_OPTIONS.length - 1)]?.value || '10:00';
-    }
-    return '10:00';
-  });
-  const [comments,    setComments]    = useState(basedOn?.Comments || '');
-  const [saving,      setSaving]      = useState(false);
+  const [showDrop, setShowDrop] = useState(false);
+  const [svcDate,  setSvcDate]  = useState(basedOn?.serviceDate || selectedDate);
+  const [numSvc,   setNumSvc]   = useState(parseInt(basedOn?.NumServices) || 1);
 
-  // For Plan type on today's date, only offer future time slots
-  const isPlanOnToday = isPlan && svcDate === getTodayStr();
-  const fromOptions = isPlanOnToday
-    ? TIME_OPTIONS.filter(t => t.value >= getNowHHMM())
-    : TIME_OPTIONS;
+  // For today, suggest the next upcoming half-hour slot; for any other date default to 08:00.
+  // When copying a plan, pre-fill from the source record.
+  const [fromTime, setFrom] = useState(() => {
+    if (basedOn?.FromTime) return basedOn.FromTime;
+    return (basedOn?.serviceDate || selectedDate) === getTodayStr() ? getNextSlot() : '08:00';
+  });
+  const [toTime, setTo] = useState(() => {
+    if (basedOn?.ToTime) return basedOn.ToTime;
+    const from = basedOn?.FromTime ??
+      ((basedOn?.serviceDate || selectedDate) === getTodayStr() ? getNextSlot() : '08:00');
+    return addOneHour(from);
+  });
+
+  const [comments, setComments] = useState(basedOn?.Comments || '');
+  const [saving,   setSaving]   = useState(false);
 
   const filtered = customers.filter(c =>
     (c.Name || '').toLowerCase().includes(custSearch.toLowerCase())
@@ -114,39 +99,12 @@ export default function ServiceEntryModal({
     }
   };
 
-  const handleDateChange = (e) => {
-    const newDate = e.target.value;
-    if (isPlan && newDate < getTodayStr()) {
-      showToast('Cannot plan for a past date', 'error');
-      setSvcDate(getTodayStr());
-      return;
-    }
-    setSvcDate(newDate);
-    // If switching to today, auto-advance fromTime/toTime if they've become past
-    if (isPlan && newDate === getTodayStr()) {
-      const now = getNowHHMM();
-      if (fromTime < now) {
-        const nextFrom = TIME_OPTIONS.find(t => t.value >= now)?.value;
-        if (nextFrom) {
-          setFrom(nextFrom);
-          const idx = TIME_OPTIONS.findIndex(t => t.value === nextFrom);
-          setTo(TIME_OPTIONS[Math.min(idx + 2, TIME_OPTIONS.length - 1)]?.value || toTime);
-        }
-      }
-    }
-  };
-
   const handleSave = async () => {
     if (!caregiverId) return showToast('Select a caregiver', 'error');
     if (!selCust)     return showToast('Select or add a customer', 'error');
     if (!svcDate)     return showToast('Pick a date', 'error');
-    if (isPlan) {
-      const today = getTodayStr();
-      if (svcDate < today) return showToast('Cannot save a plan for a past date', 'error');
-      if (svcDate === today && fromTime < getNowHHMM()) {
-        return showToast('Cannot save a plan with a past start time', 'error');
-      }
-    }
+    if (!fromTime)    return showToast('Set a start time', 'error');
+    if (!toTime)      return showToast('Set an end time', 'error');
 
     setSaving(true);
     try {
@@ -173,7 +131,7 @@ export default function ServiceEntryModal({
     }
   };
 
-  const btnBase = `w-full font-semibold py-3.5 rounded-xl transition-colors text-white`;
+  const btnBase  = 'w-full font-semibold py-3.5 rounded-xl transition-colors text-white';
   const btnColor = isPlan
     ? 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300'
     : 'bg-green-600 hover:bg-green-700 disabled:bg-green-300';
@@ -216,7 +174,7 @@ export default function ServiceEntryModal({
             </select>
           </div>
 
-          {/* Customer — searchable */}
+          {/* Customer — searchable with inline "add new" */}
           <div>
             <label className={lbl}><User size={11} className="inline mr-1" />Customer / Client</label>
             <div className="relative">
@@ -255,14 +213,13 @@ export default function ServiceEntryModal({
             )}
           </div>
 
-          {/* Date */}
+          {/* Date — no min restriction: past dates are fully supported for backlog entry */}
           <div>
             <label className={lbl}><Calendar size={11} className="inline mr-1" />Date of Service</label>
             <input
               type="date"
               value={svcDate}
-              min={isPlan ? getTodayStr() : undefined}
-              onChange={handleDateChange}
+              onChange={e => setSvcDate(e.target.value)}
               className={inp}
             />
           </div>
@@ -271,36 +228,52 @@ export default function ServiceEntryModal({
           <div>
             <label className={lbl}>Number of Services</label>
             <div className="flex items-center gap-5">
-              <button onClick={() => setNumSvc(n => Math.max(1, n - 1))}
-                className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+              <button
+                onClick={() => setNumSvc(n => Math.max(1, n - 1))}
+                className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center"
+              >
                 <Minus size={15} />
               </button>
-              <span className="text-3xl font-bold text-slate-800 w-10 text-center tabular-nums">{numSvc}</span>
-              <button onClick={() => setNumSvc(n => n + 1)}
-                className={`w-10 h-10 rounded-full ${isPlan ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700' : 'bg-green-100 hover:bg-green-200 text-green-700'} flex items-center justify-center`}>
+              <span className="text-3xl font-bold text-slate-800 w-10 text-center tabular-nums">
+                {numSvc}
+              </span>
+              <button
+                onClick={() => setNumSvc(n => n + 1)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  isPlan
+                    ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700'
+                    : 'bg-green-100 hover:bg-green-200 text-green-700'
+                }`}
+              >
                 <Plus size={15} />
               </button>
             </div>
           </div>
 
-          {/* Time */}
+          {/* Time — native time inputs allow exact hour:minute entry */}
           <div>
-            <label className={lbl}><Clock size={11} className="inline mr-1" />{isCopy ? 'Actual Hours Worked' : 'Service Hours'}</label>
+            <label className={lbl}>
+              <Clock size={11} className="inline mr-1" />
+              {isCopy ? 'Actual Hours Worked' : 'Service Hours'}
+            </label>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs text-slate-400 mb-1">From</p>
-                <select value={fromTime} onChange={e => setFrom(e.target.value)} className={inp}>
-                  {fromOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-                {isPlanOnToday && fromOptions.length === 0 && (
-                  <p className="text-xs text-red-500 mt-1">No future slots available today</p>
-                )}
+                <p className="text-xs text-slate-400 mb-1.5">From</p>
+                <input
+                  type="time"
+                  value={fromTime}
+                  onChange={e => setFrom(e.target.value)}
+                  className={inp}
+                />
               </div>
               <div>
-                <p className="text-xs text-slate-400 mb-1">To</p>
-                <select value={toTime} onChange={e => setTo(e.target.value)} className={inp}>
-                  {TIME_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                <p className="text-xs text-slate-400 mb-1.5">To</p>
+                <input
+                  type="time"
+                  value={toTime}
+                  onChange={e => setTo(e.target.value)}
+                  className={inp}
+                />
               </div>
             </div>
           </div>
@@ -339,6 +312,7 @@ export default function ServiceEntryModal({
               : '✓ Log Unplanned Visit'}
           </button>
         </div>
+
       </div>
     </div>
   );
